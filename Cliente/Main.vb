@@ -4,10 +4,19 @@ Imports System.Net.Sockets
 Imports System.Threading
 Public Class Main
     Dim ServerPort As Integer = 15243
-    Dim micStreaming As AudioServer
     Private Sub Main_Load(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles MyBase.Load
         Me.Hide()
+        Init()
         ReadParameters(Command())
+    End Sub
+    Private Sub Main_FormClosing(ByVal sender As Object, ByVal e As System.Windows.Forms.FormClosingEventArgs) Handles Me.FormClosing
+        Try
+            m_IsFormMain = False
+            StopRecordingFromSounddevice_Server()
+            StopServer()
+        Catch ex As Exception
+            AddToLog("Main_FormClosing@Main", "Error: " & ex.Message, True)
+        End Try
     End Sub
 
     Sub ReadParameters(ByVal parameter As String)
@@ -36,28 +45,25 @@ Public Class Main
                 End
             End If
         Catch ex As Exception
-            Console.WriteLine("[ReadParameters@Main]Error: " & ex.Message)
+            AddToLog("ReadParameters@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
 
     Sub StartMicStreaming(ByVal port As Integer)
         Try
-            micStreaming = New AudioServer
-            Dim threadmicStreaming As Thread = New Thread(New ParameterizedThreadStart(AddressOf micStreaming.Starter))
+            Dim threadmicStreaming As Thread = New Thread(New ParameterizedThreadStart(AddressOf Starter))
             threadmicStreaming.Start(port)
         Catch ex As Exception
-            Console.WriteLine("[StartMicStreaming@Main]Error: " & ex.Message)
+            AddToLog("StartMicStreaming@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Sub StopMicStreaming()
         Try
-            micStreaming.Stopper()
+            Stopper()
         Catch ex As Exception
-            Console.WriteLine("[StopMicStreaming@Main]Error: " & ex.Message)
+            AddToLog("StopMicStreaming@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
-End Class
-Public Class AudioServer
     Dim m_Client As TcpClient
     Dim m_Server As TCPServer
     Dim PRIVADA As String
@@ -116,7 +122,7 @@ Public Class AudioServer
                 Try
                     InitJitterBufferServerRecording()
                 Catch ex As Exception
-                    Console.WriteLine("[Starter(0)@AudioServer]Error: " & ex.Message)
+                    AddToLog("Starter(0)@Main", "Error: " & ex.Message, True)
                 End Try
                 Try
                     If IsServerRunning Then
@@ -131,13 +137,13 @@ Public Class AudioServer
                         StartTimerMixed()
                     End If
                 Catch ex As Exception
-                    Console.WriteLine("[Starter(1)@AudioServer]Error: " & ex.Message)
+                    AddToLog("Starter(1)@Main", "Error: " & ex.Message, True)
                 End Try
             Catch ex As Exception
-                Console.WriteLine("[Starter(2)@AudioServer]Error: " & ex.Message)
+                AddToLog("Starter(2)@Main", "Error: " & ex.Message, True)
             End Try
         Catch ex As Exception
-            Console.WriteLine("[Starter(3)@AudioServer]Error: " & ex.Message)
+            AddToLog("Starter(3)@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Public Sub Stopper()
@@ -146,7 +152,7 @@ Public Class AudioServer
             StopRecordingFromSounddevice_Server()
             StopServer()
         Catch ex As Exception
-            Console.WriteLine("[Stopper@AudioServer]Error: " & ex.Message)
+            AddToLog("Stopper@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub FillRTPBufferWithPayloadData(ByVal header As WinSound.WaveFileHeader)
@@ -186,7 +192,7 @@ Public Class AudioServer
             End If
         Catch ex As Exception
             m_TimerProgressBarPlayingClient.[Stop]()
-            Console.WriteLine("[OnTimerSendMixedDataToAllClients@AudioServer]Error: " & ex.Message)
+            AddToLog("OnTimerSendMixedDataToAllClients@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub InitJitterBufferServerRecording()
@@ -220,7 +226,7 @@ Public Class AudioServer
                 End If
             End If
         Catch ex As Exception
-            Console.WriteLine("[StartRecordingFromSounddevice_Server@AudioServer]Error: " & ex.Message)
+            AddToLog("StartRecordingFromSounddevice_Server@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub StopRecordingFromSounddevice_Server()
@@ -232,7 +238,7 @@ Public Class AudioServer
                 m_JitterBufferServerRecording.[Stop]()
             End If
         Catch ex As Exception
-            Console.WriteLine("[StopRecordingFromSounddevice_Server@AudioServer]Error: " & ex.Message)
+            AddToLog("StopRecordingFromSounddevice_Server@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub OnDataReceivedFromSoundcard_Server(ByVal data As [Byte]())
@@ -258,7 +264,7 @@ Public Class AudioServer
                 End If
             End SyncLock
         Catch ex As Exception
-            Console.WriteLine("[OnDataReceivedFromSoundcard_Server@AudioServer]Error: " & ex.Message)
+            AddToLog("OnDataReceivedFromSoundcard_Server@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub OnJitterBufferServerDataAvailable(ByVal sender As [Object], ByVal rtp As WinSound.RTPPacket)
@@ -272,14 +278,14 @@ Public Class AudioServer
                             Try
                                 client.Send(m_PrototolClient.ToBytes(rtpBytes))
                             Catch generatedExceptionName As Exception
-                                Console.WriteLine("[OnJitterBufferServerDataAvailable@AudioServer]Error: " & generatedExceptionName.Message)
                             End Try
                         End If
                     Next
                 End If
             End If
         Catch ex As Exception
-            Console.WriteLine("[OnJitterBufferServerDataAvailable@AudioServer]Error: " & ex.Message)
+            Dim sf As New System.Diagnostics.StackFrame(True)
+            AddToLog("OnJitterBufferServerDataAvailable@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Function ToRTPData(ByVal data As [Byte](), ByVal bitsPerSample As Integer, ByVal channels As Integer) As [Byte]()
@@ -304,14 +310,12 @@ Public Class AudioServer
             m_SequenceNumber += 1
         Catch generatedExceptionName As Exception
             m_SequenceNumber = 0
-            Console.WriteLine("[ToRTPPacket(0)@AudioServer]Error: " & generatedExceptionName.Message)
         End Try
         Try
             rtp.Timestamp = Convert.ToUInt32(m_TimeStamp)
             m_TimeStamp += mulaws.Length
         Catch generatedExceptionName As Exception
             m_TimeStamp = 0
-            Console.WriteLine("[ToRTPPacket(1)@AudioServer]Error: " & generatedExceptionName.Message)
         End Try
         Return rtp
     End Function
@@ -335,7 +339,7 @@ Public Class AudioServer
                 End If
             End If
         Catch ex As Exception
-            Console.WriteLine("[StartServer@AudioServer]Error: " & ex.Message)
+            AddToLog("StartServer@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub StopServer()
@@ -349,7 +353,7 @@ Public Class AudioServer
             End If
             m_Server = Nothing
         Catch ex As Exception
-            Console.WriteLine("[StopServer@AudioServer]Error: " & ex.Message)
+            AddToLog("StopServer@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub OnServerClientConnected(ByVal st As ServerThread)
@@ -360,7 +364,7 @@ Public Class AudioServer
             m_DictionaryServerDatas(st) = data
             SendConfigurationToClient(data)
         Catch ex As Exception
-            Console.WriteLine("[OnServerClientConnected@AudioServer]Error: " & ex.Message)
+            AddToLog("OnServerClientConnected@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub SendConfigurationToClient(ByVal data As ServerThreadData)
@@ -378,7 +382,7 @@ Public Class AudioServer
             End If
             DictionaryMixed.Remove(st)
         Catch ex As Exception
-            Console.WriteLine("[OnServerClientDisconnected@AudioServer]Error: " & ex.Message)
+            AddToLog("OnServerClientDisconnected@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub StartTimerMixed()
@@ -411,7 +415,7 @@ Public Class AudioServer
                 Next
                 m_DictionaryServerDatas.Clear()
             Catch ex As Exception
-                Console.WriteLine("[[DeleteAllServerThreadDatas@AudioServer]Error: " & ex.Message)
+                AddToLog("DeleteAllServerThreadDatas@Main", "Error: " & ex.Message, True)
             End Try
         End SyncLock
     End Sub
@@ -433,10 +437,8 @@ Public Class AudioServer
     End Property
 End Class
 Public Class ServerThreadData
-
     Public Sub New()
     End Sub
-
     Public ServerThread As ServerThread
     Public Player As WinSound.Player
     Public JitterBuffer As WinSound.JitterBuffer
@@ -450,7 +452,6 @@ Public Class ServerThreadData
     Private IsInitialized As Boolean = False
     Public IsMute As Boolean = False
     Public Shared IsMuteAll As Boolean = False
-
     Public Sub Init(ByVal st As ServerThread, ByVal soundDeviceName As String, ByVal samplesPerSecond As Integer, ByVal bitsPerSample As Integer, ByVal channels As Integer, ByVal soundBufferCount As Integer,
      ByVal jitterBufferCount As UInteger, ByVal jitterBufferMilliseconds As UInteger)
         Me.ServerThread = st
@@ -469,10 +470,9 @@ Public Class ServerThreadData
         End If
         Me.Protocol = New WinSound.Protocol(WinSound.ProtocolTypes.LH, Encoding.[Default])
         AddHandler Me.Protocol.DataComplete, AddressOf OnProtocolDataComplete
-        AudioServer.DictionaryMixed(st) = New Queue(Of List(Of Byte))()
+        Main.DictionaryMixed(st) = New Queue(Of List(Of Byte))()
         IsInitialized = True
     End Sub
-
     Public Sub Dispose()
         If Protocol IsNot Nothing Then
             RemoveHandler Me.Protocol.DataComplete, AddressOf OnProtocolDataComplete
@@ -490,7 +490,6 @@ Public Class ServerThreadData
         End If
         IsInitialized = False
     End Sub
-
     Private Sub OnProtocolDataComplete(ByVal sender As [Object], ByVal bytes As [Byte]())
         If IsInitialized Then
             If ServerThread IsNot Nothing AndAlso Player IsNot Nothing Then
@@ -515,7 +514,6 @@ Public Class ServerThreadData
             End If
         End If
     End Sub
-
     Private Sub OnJitterBufferDataAvailable(ByVal sender As [Object], ByVal rtp As WinSound.RTPPacket)
         Try
             If Player IsNot Nothing Then
@@ -524,9 +522,9 @@ Public Class ServerThreadData
                 If IsMuteAll = False AndAlso IsMute = False Then
                     Player.PlayData(linearBytes, False)
                 End If
-                Dim q As Queue(Of List(Of Byte)) = AudioServer.DictionaryMixed(sender)
+                Dim q As Queue(Of List(Of [Byte])) = Main.DictionaryMixed(sender)
                 If q.Count < 10 Then
-                    AudioServer.DictionaryMixed(sender).Enqueue(New List(Of Byte)(linearBytes))
+                    Main.DictionaryMixed(sender).Enqueue(New List(Of [Byte])(linearBytes))
                 End If
             End If
         Catch ex As Exception
@@ -535,10 +533,8 @@ Public Class ServerThreadData
     End Sub
 End Class
 Public Class TCPServer
-
     Public Sub New()
     End Sub
-
     Private m_endpoint As IPEndPoint
     Private m_tcpip As TcpListener
     Private m_ThreadMainServer As Thread
@@ -550,32 +546,27 @@ Public Class TCPServer
     Public Event ClientConnected As DelegateClientConnected
     Public Event ClientDisconnected As DelegateClientDisconnected
     Public Event DataReceived As DelegateDataReceived
-
     Public Enum ListenerState
         None
         Started
         Stopped
         [Error]
     End Enum
-
     Public ReadOnly Property Clients() As List(Of ServerThread)
         Get
             Return m_threads
         End Get
     End Property
-
     Public ReadOnly Property State() As ListenerState
         Get
             Return m_State
         End Get
     End Property
-
     Public ReadOnly Property Listener() As TcpListener
         Get
             Return Me.m_tcpip
         End Get
     End Property
-
     Public Sub Start(ByVal strIPAdress As String, ByVal Port As Integer)
         m_endpoint = New IPEndPoint(IPAddress.Parse(strIPAdress), Port)
         m_tcpip = New TcpListener(m_endpoint)
@@ -593,7 +584,6 @@ Public Class TCPServer
             Throw ex
         End Try
     End Sub
-
     Private Sub Run()
         While True
             Dim client As TcpClient = m_tcpip.AcceptTcpClient()
@@ -608,9 +598,7 @@ Public Class TCPServer
             End Try
         End While
     End Sub
-
     Public Function Send(ByVal data As [Byte]()) As Integer
-
         Dim list As New List(Of ServerThread)(m_threads)
         For Each sv As ServerThread In list
             Try
@@ -622,23 +610,19 @@ Public Class TCPServer
         Next
         Return m_threads.Count
     End Function
-
     Private Sub OnDataReceived(ByVal st As ServerThread, ByVal data As [Byte]())
         RaiseEvent DataReceived(st, data)
     End Sub
-
     Private Sub OnClientDisconnected(ByVal st As ServerThread, ByVal info As String)
         m_threads.Remove(st)
         RaiseEvent ClientDisconnected(st, info)
     End Sub
-
     Private Sub OnClientConnected(ByVal st As ServerThread)
         If Not m_threads.Contains(st) Then
             m_threads.Add(st)
         End If
         RaiseEvent ClientConnected(st)
     End Sub
-
     Public Sub [Stop]()
         Try
             If m_ThreadMainServer IsNot Nothing Then
@@ -672,23 +656,19 @@ Public Class ServerThread
     Public Event DataReceived As DelegateDataReceived
     Public Delegate Sub DelegateClientDisconnected(ByVal sv As ServerThread, ByVal info As String)
     Public Event ClientDisconnected As DelegateClientDisconnected
-
     Public ReadOnly Property Client() As TcpClient
         Get
             Return m_Connection
         End Get
     End Property
-
     Public ReadOnly Property IsStopped() As Boolean
         Get
             Return m_IsStopped
         End Get
     End Property
-
     Public Sub New(ByVal connection As TcpClient)
         Me.m_Connection = connection
     End Sub
-
     Public Sub Receive(ByVal ar As IAsyncResult)
         Try
             If Me.m_Connection.Client.Connected = False Then
@@ -709,12 +689,10 @@ Public Class ServerThread
             HandleDisconnection(ex.Message)
         End Try
     End Sub
-
     Public Sub HandleDisconnection(ByVal reason As String)
         m_IsStopped = True
         RaiseEvent ClientDisconnected(Me, reason)
     End Sub
-
     Public Sub Send(ByVal data As [Byte]())
         Try
             If Me.m_IsStopped = False Then
@@ -730,7 +708,6 @@ Public Class ServerThread
             Throw ex
         End Try
     End Sub
-
     Public Sub [Stop]()
         If m_Connection.Client.Connected = True Then
             m_Connection.Client.Disconnect(False)

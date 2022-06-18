@@ -1,50 +1,21 @@
 ﻿Imports System.Text
 Imports System.Net.Sockets
 Imports System.Net.NetworkInformation
-Imports Microsoft.Win32
 Imports System.Threading
 Public Class Main
-    Dim ServerIP As String
-    Dim ServerPort As Integer
-    Dim micStreaming As AudioClient
-    Sub LoadMemory()
-        Try
-            Dim llaveReg As String = "SOFTWARE\\Zhenboro\\RMTMIC"
-            Dim registerKey As RegistryKey = Registry.CurrentUser.OpenSubKey(llaveReg, True)
-            If registerKey Is Nothing Then
-                SaveMemory()
-            Else
-                ServerIP = registerKey.GetValue("ServerIP")
-                ServerPort = registerKey.GetValue("ServerPort")
-                TextBox1.Text = ServerIP
-                TextBox2.Text = ServerPort
-            End If
-        Catch ex As Exception
-            Console.WriteLine("LoadMemory Error: " & ex.Message)
-        End Try
-    End Sub
-    Sub SaveMemory()
-        Try
-            Dim llaveReg As String = "SOFTWARE\\Zhenboro\\RMTMIC"
-            Dim registerKey As RegistryKey = Registry.CurrentUser.OpenSubKey(llaveReg, True)
-            If registerKey Is Nothing Then
-                Registry.CurrentUser.CreateSubKey(llaveReg, True)
-                registerKey = Registry.CurrentUser.OpenSubKey(llaveReg, True)
-            End If
-            If ServerIP = Nothing Or ServerPort = Nothing Then
-                ServerIP = InputBox("Direccion IP", Me.Text)
-                ServerPort = InputBox("Puerto", Me.Text)
-            End If
-            registerKey.SetValue("ServerIP", ServerIP)
-            registerKey.SetValue("ServerPort", ServerPort)
-            LoadMemory()
-        Catch ex As Exception
-            Console.WriteLine("SaveMemory Error: " & ex.Message)
-        End Try
-    End Sub
     Private Sub Main_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        Init()
         LoadMemory()
         ReadParameters(Command())
+    End Sub
+    Private Sub Main_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
+        Try
+            m_IsFormMain = False
+            StopRecordingFromSounddevice_Client()
+            DisconnectClient()
+        Catch ex As Exception
+            AddToLog("Main_FormClosing@Main", "Error: " & ex.Message, True)
+        End Try
     End Sub
     Sub ReadParameters(ByVal parameter As String)
         Try
@@ -74,7 +45,7 @@ Public Class Main
                 Next
             End If
         Catch ex As Exception
-            Console.WriteLine("[ReadParameters@Main]Error: " & ex.Message)
+            AddToLog("ReadParameters@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
 
@@ -83,18 +54,17 @@ Public Class Main
             Button1.Enabled = False
             TextBox1.Enabled = False
             TextBox2.Enabled = False
-            micStreaming = New AudioClient
-            Dim threadmicStreaming = New Thread(Sub() micStreaming.Starter(ServerIP, ServerPort))
+            Dim threadmicStreaming = New Thread(Sub() Starter(ServerIP, ServerPort))
             threadmicStreaming.Start()
         Catch ex As Exception
-            Console.WriteLine("[StartMicStreamingListen@Main]Error: " & ex.Message)
+            AddToLog("StartMicStreamingListen@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Sub StopMicStreamingListen()
         Try
-            micStreaming.Stopper()
+            Stopper()
         Catch ex As Exception
-            Console.WriteLine("[StopMicStreamingListen@Main]Error: " & ex.Message)
+            AddToLog("StopMicStreamingListen@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
 
@@ -108,8 +78,6 @@ Public Class Main
             StartMicStreamingListen()
         End If
     End Sub
-End Class
-Public Class AudioClient
     Dim IPSERVIDOR As String
     Dim PUERTO As Integer
     Dim m_Client As TCPCLIENTE
@@ -157,6 +125,7 @@ Public Class AudioClient
                 InitTimerShowProgressBarPlayingClient()
                 InitProtocolClient()
             Catch ex As Exception
+                AddToLog("Starter(0)@Main", "Error: " & ex.Message, True)
                 MsgBox(ex.Message)
             End Try
             Try
@@ -168,11 +137,13 @@ Public Class AudioClient
                 End If
                 System.Threading.Thread.Sleep(100)
             Catch ex As Exception
+                AddToLog("Starter(1)@Main", "Error: " & ex.Message, True)
                 MsgBox(ex.Message)
             End Try
         Catch ex As Exception
+            AddToLog("Starter(2)@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
-            RMT_MIC_Server.Main.Button1.Enabled = True
+            Button1.Enabled = True
         End Try
     End Sub
     Public Sub Stopper()
@@ -181,6 +152,7 @@ Public Class AudioClient
             StopRecordingFromSounddevice_Client()
             DisconnectClient()
         Catch ex As Exception
+            AddToLog("Stopper@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -218,6 +190,7 @@ Public Class AudioClient
             End If
         Catch ex As Exception
             m_TimerProgressBarPlayingClient.[Stop]()
+            AddToLog("OnTimerProgressPlayingClient@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -243,6 +216,7 @@ Public Class AudioClient
                 End If
             End If
         Catch ex As Exception
+            AddToLog("StartRecordingFromSounddevice_Client@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -259,17 +233,15 @@ Public Class AudioClient
                 ShowStreamingFromSounddeviceStopped_Client()
             End If
         Catch ex As Exception
+            AddToLog("StopRecordingFromSounddevice_Client@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
     Private Sub OnRecordingStopped_Client()
         Try
-            If RMT_MIC_Server.Main.InvokeRequired Then
-                RMT_MIC_Server.Main.Invoke(New MethodInvoker(Sub() ShowStreamingFromSounddeviceStopped_Client()))
-            Else
-            End If
-            'Dim thing As MethodInvoker = New MethodInvoker(Sub() ShowStreamingFromSounddeviceStopped_Client())
+            Me.Invoke(New MethodInvoker(Sub() ShowStreamingFromSounddeviceStopped_Client()))
         Catch ex As Exception
+            AddToLog("OnRecordingStopped_Client@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -297,7 +269,7 @@ Public Class AudioClient
                 End If
             End SyncLock
         Catch ex As Exception
-            System.Diagnostics.Debug.WriteLine(ex.Message)
+            AddToLog("OnDataReceivedFromSoundcard_Client@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub OnJitterBufferClientDataAvailableRecording(ByVal sender As [Object], ByVal rtp As WinSound.RTPPacket)
@@ -312,6 +284,7 @@ Public Class AudioClient
             End If
         Catch ex As Exception
             Dim sf As New System.Diagnostics.StackFrame(True)
+            AddToLog("OnJitterBufferClientDataAvailableRecording@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -329,6 +302,7 @@ Public Class AudioClient
             End If
         Catch ex As Exception
             Dim sf As New System.Diagnostics.StackFrame(True)
+            AddToLog("OnJitterBufferClientDataAvailablePlaying@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -384,8 +358,9 @@ Public Class AudioClient
             End If
         Catch ex As Exception
             m_Client = Nothing
+            AddToLog("ConnectClient@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
-            End
+            Me.Close()
         End Try
     End Sub
     Private Sub DisconnectClient()
@@ -399,6 +374,7 @@ Public Class AudioClient
                 m_Client = Nothing
             End If
         Catch ex As Exception
+            AddToLog("DisconnectClient@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -420,7 +396,7 @@ Public Class AudioClient
                 m_PrototolClient.Receive_LH(client, bytes)
             End If
         Catch ex As Exception
-            Console.WriteLine(ex.Message)
+            AddToLog("OnClientDataReceived@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub OnProtocolClient_DataComplete(ByVal sender As [Object], ByVal data As [Byte]())
@@ -438,7 +414,7 @@ Public Class AudioClient
                 OnClientConfigReceived(sender, data)
             End If
         Catch ex As Exception
-            Console.WriteLine(ex.Message)
+            AddToLog("OnProtocolClient_DataComplete@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private Sub OnClientConfigReceived(ByVal sender As [Object], ByVal data As [Byte]())
@@ -451,22 +427,15 @@ Public Class AudioClient
                     Case "SAMPLESPERSECOND"
                         Dim samplePerSecond As Integer = Convert.ToInt32(values(1))
                         SamplesPerSecondClient = samplePerSecond
-                        If RMT_MIC_Server.Main.InvokeRequired Then
-                            RMT_MIC_Server.Main.Invoke(New MethodInvoker(Sub()
-                                                                             StartPlayingToSounddevice_Client()
-                                                                             StartRecordingFromSounddevice_Client()
-                                                                         End Sub))
-                        Else
-                        End If
-                        'Dim thing As MethodInvoker = New MethodInvoker(Sub()
-                        '                                                   StartPlayingToSounddevice_Client()
-                        '                                                   StartRecordingFromSounddevice_Client()
-                        '                                               End Sub)
+                        Me.Invoke(New MethodInvoker(Sub()
+                                                        StartPlayingToSounddevice_Client()
+                                                        StartRecordingFromSounddevice_Client()
+                                                    End Sub))
                         Exit Select
                 End Select
             End If
         Catch ex As Exception
-            Console.WriteLine(ex.Message)
+            AddToLog("OnClientConfigReceived@Main", "Error: " & ex.Message, True)
         End Try
     End Sub
     Private ReadOnly Property IsClientConnected() As Boolean
@@ -479,34 +448,34 @@ Public Class AudioClient
     End Property
     Private Sub ShowStreamingFromSounddeviceStarted_Client()
         Try
-            If RMT_MIC_Server.Main.InvokeRequired Then
-                RMT_MIC_Server.Main.Invoke(New MethodInvoker(Sub() ShowStreamingFromSounddeviceStarted_Client()))
+            If Me.InvokeRequired Then
+                Me.Invoke(New MethodInvoker(Sub() ShowStreamingFromSounddeviceStarted_Client()))
             Else
             End If
-            'Dim thing As MethodInvoker = New MethodInvoker(Sub() ShowStreamingFromSounddeviceStarted_Client())
         Catch ex As Exception
+            AddToLog("ShowStreamingFromSounddeviceStarted_Client@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
     Private Sub ShowStreamingFromSounddeviceStopped_Client()
         Try
-            If RMT_MIC_Server.Main.InvokeRequired Then
-                RMT_MIC_Server.Main.Invoke(New MethodInvoker(Sub() ShowStreamingFromSounddeviceStopped_Client()))
+            If Me.InvokeRequired Then
+                Me.Invoke(New MethodInvoker(Sub() ShowStreamingFromSounddeviceStopped_Client()))
             Else
             End If
-            'Dim thing As MethodInvoker = New MethodInvoker(Sub() ShowStreamingFromSounddeviceStopped_Client())
         Catch ex As Exception
+            AddToLog("ShowStreamingFromSounddeviceStopped_Client@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
     Private Sub ShowStreamingFromFileStarted()
         Try
-            If RMT_MIC_Server.Main.InvokeRequired Then
-                RMT_MIC_Server.Main.Invoke(New MethodInvoker(Sub() ShowStreamingFromFileStarted()))
+            If Me.InvokeRequired Then
+                Me.Invoke(New MethodInvoker(Sub() ShowStreamingFromFileStarted()))
             Else
             End If
-            'Dim thing As MethodInvoker = New MethodInvoker(Sub() ShowStreamingFromFileStarted())
         Catch ex As Exception
+            AddToLog("ShowStreamingFromFileStarted@Main", "Error: " & ex.Message, True)
             MsgBox(ex.Message)
         End Try
     End Sub
@@ -533,13 +502,8 @@ Public Class AudioClient
             m_JitterBufferClientPlaying.[Stop]()
         End If
         m_TimerProgressBarPlayingClient.[Stop]()
-        If RMT_MIC_Server.Main.InvokeRequired Then
-            RMT_MIC_Server.Main.Invoke(New MethodInvoker(Sub()
-                                                         End Sub))
-        Else
-        End If
-        'Dim thing As MethodInvoker = New MethodInvoker(Sub()
-        '                                               End Sub)
+        Me.Invoke(New MethodInvoker(Sub()
+                                    End Sub))
     End Sub
 End Class
 Public Class TCPCLIENTE
